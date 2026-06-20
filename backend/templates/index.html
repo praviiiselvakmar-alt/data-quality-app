@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Data Quality Audit Assistant</title>
+<style>
+  body {
+    font-family: Georgia, 'Times New Roman', serif;
+    background: #f7f5f1;
+    color: #2b2b2b;
+    margin: 0;
+    padding: 0;
+  }
+  h1 {
+    background: #1f2d3d;
+    color: #f7f5f1;
+    margin: 0;
+    padding: 28px 40px;
+    border-bottom: 4px solid #8a6d3b;
+    font-size: 28px;
+  }
+  .upload-box, #reportSection {
+    max-width: 850px;
+    margin: 30px auto;
+    background: #fffdfb;
+    border: 1px solid #d8d2c4;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    padding: 30px;
+  }
+  input[type="file"] {
+    font-family: Georgia, serif;
+    margin-bottom: 16px;
+  }
+  button {
+    background: #1f2d3d;
+    color: #f7f5f1;
+    border: none;
+    padding: 10px 24px;
+    font-family: Georgia, serif;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #8a6d3b;
+  }
+  h2 {
+    border-bottom: 2px solid #8a6d3b;
+    padding-bottom: 8px;
+    color: #1f2d3d;
+  }
+  .summary-card {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin: 20px 0 30px;
+  }
+  .summary-box {
+    background: #faf8f4;
+    border: 1px solid #d8d2c4;
+    border-left: 4px solid #8a6d3b;
+    padding: 16px;
+    text-align: center;
+  }
+  .summary-box .label {
+    font-size: 12px;
+    color: #777;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .summary-box .value {
+    font-size: 26px;
+    font-weight: bold;
+    color: #1f2d3d;
+    margin-top: 6px;
+  }
+  .summary-box.score .value {
+    color: #1f5c3a;
+  }
+  .score-compare {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    margin: 20px 0 30px;
+    padding: 20px;
+    background: #faf8f4;
+    border: 1px solid #d8d2c4;
+  }
+  .score-block {
+    text-align: center;
+  }
+  .score-block .label {
+    font-size: 13px;
+    color: #777;
+    text-transform: uppercase;
+  }
+  .score-block .value {
+    font-size: 36px;
+    font-weight: bold;
+  }
+  .score-block.before .value { color: #a33; }
+  .score-block.after .value { color: #1f5c3a; }
+  .arrow {
+    font-size: 30px;
+    color: #8a6d3b;
+  }
+  table.col-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+  }
+  table.col-table th, table.col-table td {
+    padding: 10px;
+    border-bottom: 1px solid #e2dccf;
+    text-align: left;
+  }
+  table.col-table th {
+    background: #1f2d3d;
+    color: #f7f5f1;
+    font-weight: normal;
+  }
+  ul {
+    line-height: 1.6;
+  }
+  .download-btn {
+    background: #1f5c3a;
+    margin-top: 10px;
+  }
+  .download-btn:hover {
+    background: #2e7d4f;
+  }
+</style>
+</head>
+<body>
+
+<h1>Data Quality Audit Assistant</h1>
+
+<div class="upload-box">
+  <input type="file" id="fileInput" accept=".csv">
+  <br>
+  <button onclick="analyzeFile()">Analyze</button>
+</div>
+
+<div id="reportSection"></div>
+
+<script>
+async function analyzeFile() {
+  const fileInput = document.getElementById('fileInput');
+  if (!fileInput.files.length) {
+    alert("Please choose a CSV file first.");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", fileInput.files[0]);
+
+  const uploadRes = await fetch("/upload", {
+    method: "POST",
+    body: formData
+  });
+  const uploadData = await uploadRes.json();
+
+  if (uploadData.error) {
+    alert(uploadData.error);
+    return;
+  }
+
+  renderReport(uploadData);
+}
+
+function renderReport(report) {
+  const section = document.getElementById('reportSection');
+
+  let recommendationsHtml = "";
+  if (report.recommendations && report.recommendations.length) {
+    recommendationsHtml = "<ul>" +
+      report.recommendations.map(function(r) { return "<li>" + r + "</li>"; }).join("") +
+      "</ul>";
+  }
+
+  let columnRowsHtml = "";
+  if (report.column_breakdown) {
+    columnRowsHtml = report.column_breakdown.map(function(c) {
+      return "<tr><td>" + c.column + "</td><td>" + c.type + "</td><td>" + c.missing + "</td></tr>";
+    }).join("");
+  }
+
+  section.innerHTML =
+    "<h2>Quality Report</h2>" +
+    "<div class='summary-card'>" +
+      "<div class='summary-box'><div class='label'>Total Rows</div><div class='value'>" + report.rows + "</div></div>" +
+      "<div class='summary-box'><div class='label'>Total Columns</div><div class='value'>" + report.columns + "</div></div>" +
+      "<div class='summary-box'><div class='label'>Missing Values</div><div class='value'>" + report.missing_values + "</div></div>" +
+      "<div class='summary-box'><div class='label'>Duplicate Rows</div><div class='value'>" + report.duplicate_rows + "</div></div>" +
+      "<div class='summary-box'><div class='label'>Outliers</div><div class='value'>" + report.outliers + "</div></div>" +
+      "<div class='summary-box score'><div class='label'>Quality Score</div><div class='value'>" + report.score + "/100</div></div>" +
+    "</div>" +
+
+    "<h2>Before vs After Cleaning</h2>" +
+    "<div class='score-compare'>" +
+      "<div class='score-block before'><div class='label'>Before</div><div class='value'>" + report.score + "</div></div>" +
+      "<div class='arrow'>&#8594;</div>" +
+      "<div class='score-block after'><div class='label'>After</div><div class='value'>" + report.after_score + "</div></div>" +
+    "</div>" +
+
+    "<h2>Column Breakdown</h2>" +
+    "<table class='col-table'>" +
+      "<tr><th>Column</th><th>Type</th><th>Missing Values</th></tr>" +
+      columnRowsHtml +
+    "</table>" +
+
+    "<h2>Recommendations</h2>" +
+    recommendationsHtml +
+    "<button class='download-btn' onclick='downloadCleaned()'>Download Cleaned CSV</button>";
+}
+
+async function downloadCleaned() {
+  const response = await fetch("/clean", {
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    alert("Error generating cleaned file.");
+    return;
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "cleaned_data.csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+</script>
+
+</body>
+</html>
